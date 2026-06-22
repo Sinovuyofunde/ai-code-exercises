@@ -1,16 +1,43 @@
-This codebase is used to generated tests, it being a JUNIT test.
-the unit uses the naming convention "methodName_shouldExpectBehavior" contains tests veries such as 'calculateTaskScore().
-task scores having to test the tasks with a HIGH PRIORIY and a LOW PRIORITY
-the test used the arrange-act-assert pattern.
-this codebase uses the java programming language and it uses testing framework "junit"
-the tool used to configure the code is gradle
-libraires used: java.util.list, java.util, java.time
-object oriented progamming: classes,objects,methods and enums
-ai pov:
--junit 5 test
--biuld.gragle
--java
--model: stores data
--util: contains helper logic
--src/main/java: application code
+At first I thought the project was just going to be a simple Java work management program. After I went through the code, I noticed that it's a structured layered junit test.
+
+Technologies used in the code:
+-Java programming language
+-Java Collections Framework
+-Java Time API
+-UUID generation
+
+Discovered through AI uethat the main concepts are:
+
+"TaskManager.java"
+
+RESPONSIBILIES:
+-Create tasks
+-Update tasks
+-Delete tasks
+-Manage tags
+-Generate statistics
+-Filter tasks
+
+"TaskStorage.java"
+
+RESPONSIBILITIES:
+
+-Save tasks to JSON
+-Load tasks from JSON file.
+-Add tasks
+-Delete tasks
+-Retrieve tasks
+
+"Task.java"
+
+CONTAINS:
+
+-ID
+-Title
+-Description
+-Priority
+-Status
+-Due date
+-Completion date
+-Tags
 
