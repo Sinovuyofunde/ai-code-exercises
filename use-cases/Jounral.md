@@ -1,70 +1,54 @@
-
 # Task Manager CLI - Code Analysis and Architecture Review
 
-Task Manager CLI - Code Analysis and Architecture Review is a command line tool that provides a code-related analysis and architecture review.
+Task Manager CLI - Code Analysis and Architecture Review is a command line tool, and this document provides a code-related analysis and architecture review of it.
 
 ## Introduction
 
-At first I thought the project was just going to be a simple Java work management program. After I went through the code, I noticed that it's a structured layered junit test.
+At first I thought the project was just going to be a simple Java task management program. After I went through the code, I noticed that it's actually a structured, layered architecture. All of the following files were analyzed:
 
-All the following files were analysed:
+- TaskManagerCli.java
+- TaskManager.java
+- Task.java
+- TaskStatus.java
+- TaskPriority.java
+- TaskStorage.java
 
-- `TaskManagerCli.java`
-- `TaskManager.java`
-- `Task.java`
-- `TaskStatus.java`
-- `TaskPriority.java`
-- `TaskStorage.java`
-
-I wanted to know how it was implemented and what design decisions were taken in the process of the project.
+I wanted to know how it was implemented and what design decisions were taken in the process of building the project.
 
 ---
 
 # Understanding the Structure of the Application
 
-One of the first things that I noticed was that there is a division of the application into packages and each package has a specific responsibility.
+One of the first things I noticed was that the application is divided into packages, and each package has a specific responsibility.
 
 ## CLI Layer
-
-The CLI layer is the beginning point of the application. It listens to the user commands, parses the arguments and sends a request to the service layer.
+The CLI layer is the entry point of the application. It listens for user commands, parses the arguments, and sends a request to the service layer.
 
 ## Service Layer
-
-Application's business rules are in the service layer. All operations are mediated by `TaskManager`, which is not allowed to manipulate tasks directly by the CLI.
+The application's business rules live in the service layer. All operations are mediated by `TaskManager` — the CLI is not allowed to manipulate tasks directly.
 
 ## Model Layer
-
-Model layer is the layer that models all the objects in the system. This comprises tasks, their statuses and priorities.
+The model layer models all the objects in the system. This comprises tasks, their statuses, and their priorities.
 
 ## Storage Layer
+The storage layer stores task data and saves it to disk using JSON serialization.
 
-The storage layer stores the data of the tasks and saves it to disks, using the JSON serialization.
-
-This separation makes it easier for the code to be understood, because each component has only one responsibility.
+This separation makes the code easier to understand, because each component has only one responsibility.
 
 ---
 
 # Feature Analysis – Making a Task
 
-There are several components to the creation of a task.
+There are several components involved in the creation of a task. Once the user runs a `create` command, the input is retrieved by the CLI and passed to the service layer. A series of validations and conversions are then done in the service layer:
 
-Once the user inputs a create command, the create information is retrieved by the CLI and passed to the service layer.
+- Maps the numeric priority to an item of `TaskPriority`.
+- Parses a date string into a `LocalDateTime`.
+- Checks the information provided before the task is built.
 
-Then a series of validations and conversions are done in the service layer:
-
-- Maps the numeric priority to an item of TaskPriority.
-- Parses and returns a `LocalDateTime` from a date string.
-- Verifies information provided in advance of task development.
-
-After validation it creates a new task object.
-
-It's interesting that each new task is created and immediately set to the ‘TODO' state. The constructor ensures this as tasks are always added to the system in the same state.
-
-Once created, the task is saved in the in-memory collection of the application prior to being stored on disk.
+After validation, a new task object is created. It's interesting that every new task is immediately set to the `TODO` state — the constructor ensures this, so tasks are always added to the system in the same starting state. Once created, the task is added to the application's in-memory collection before being written to disk.
 
 ## Task Creation Workflow
-
-```text
+```
 User Command
       ↓
 TaskManagerCli
@@ -80,47 +64,37 @@ tasks.json
 
 ---
 
-# Defining how the task status changes.Defining what should happen to the task status.
+# Defining How Task Status Changes
 
-Changing the status for a task showed some interesting choices that were made in implementation.
+Changing the status of a task revealed some interesting implementation choices.
 
 When a user enters:
-
 ```bash
 status <task_id> <status>
 ```
 
-The application takes the provided text and updates the corresponding task, based on the supplied text being converted into a TaskStatus enum.
+the application takes the provided text, converts it into a `TaskStatus` enum, and updates the corresponding task.
 
-During the analysis what was noticeable was the lack of consistency in status changes.
+During the analysis, what was noticeable was a lack of consistency in how status changes are handled. For most status updates, the application creates a temporary task object holding only the changed value. This temporary object is then used to update the original task.
 
-The application generates a temporary task object that has only the changed values for most status updates. This is a temporary object that is then used to update the original task.
-
-But when the task is `DONE`, a completely different process takes place.
-
-The application uses: to find the real task and to directly change it, rather than creating a temporary object:
+But when the new status is `DONE`, a completely different process takes place. Instead of creating a temporary object, the application looks up the real task directly and calls:
 
 ```java
 markAsDone()
 ```
 
 This method updates:
-
 - Status
 - Completion date
 - Last updated timestamp
 
-The changes are then immediately saved.
-
-They both give the same results but are two different strategies of updating task data.
+The changes are then immediately saved. Both paths produce the same end result, but they are two different strategies for updating task data.
 
 ---
 
-# The Priority System is discussed.The Priority System is examined.
+# The Priority System
 
-Going into this I thought that the priority feature would have an impact on what order the tasks would appear in when viewing the implementation.
-
-The priority levels are expressed with numbers:
+Going into this, I thought the priority feature would affect the order in which tasks appear when viewing them. The priority levels are expressed with numbers:
 
 | Level | Value |
 |---------|---------|
@@ -129,45 +103,33 @@ The priority levels are expressed with numbers:
 | HIGH | 3 |
 | URGENT | 4 |
 
-Due to these numeric values, it was likely that high priority tasks would show up before low priority tasks.
-
-I found out this was false after following the code.
-
-Priority values are not used to sort tasks in the application.
-
-Rather, priority is used for three primary purposes:
+Because of these numeric values, it seemed likely that high-priority tasks would show up before low-priority ones. After following the code, I found this assumption to be false. Priority values are not used to sort tasks anywhere in the application. Instead, priority is used for three main purposes:
 
 ## Filtering
-
-Users can get tasks associated with a particular priority category.
+Users can retrieve tasks associated with a particular priority level.
 
 ## Statistical Reporting
-
 Priority values are counted when generating task statistics.
 
 ## Display Formatting
+The CLI represents priority levels visually — for example, using exclamation marks.
 
-The CLI interacts with priority levels in a graphical manner, for example, exclamation marks.
-
-The numeric values are not there to rank tasks - the primary reason for using them is to make the user input and identification of the categories easier.
+The numeric values aren't there to rank tasks; their main purpose is to make user input and category identification easier.
 
 ---
 
-# Impacts of tracking data on the system are monitored.
+# Tracking Data Impacts on the System
 
-I traced the whole application workflow of marking a task as done, to see how information flows throughout the application.
+I traced the application's full workflow for marking a task as done, to see how information flows through the system.
 
 ## User Action
-
 ```bash
 taskmanager status 12345 done
 ```
 
 ## Internal Processing
-
-The command is sent down several layers:
-
-```text
+The command passes down through several layers:
+```
 CLI
  ↓
 TaskManager
@@ -179,119 +141,83 @@ Task Object
 JSON Persistence
 ```
 
-The task is retrieved from storage, altered in memory, and then re-written to storage.
+The task is retrieved from storage, altered in memory, and then re-written to storage. In the process, three fields are updated:
+- status
+- completedAt
+- updatedAt
 
-In the process, three fields are updated:
-
-- `status`
-- `completedAt`
-- `updatedAt`
-
-All task data is stored once the update has been completed.
+All task data is saved once the update is complete.
 
 ---
 
 # Storage Strategy
 
-The application has a simple persistence strategy.
-
-All of the tasks are kept in one:
+The application uses a simple persistence strategy. All tasks are kept in a single:
 
 ```java
 HashMap<String, Task>
 ```
 
-During run-time of the application.
+during runtime. Task IDs are used as map keys, so lookups are fast. For permanent storage, it uses a single JSON file:
 
-Task IDs are used as map keys, so it is fast to look them up.
-
-It uses only one JSON file for permanent storage:
-
-```text
+```
 tasks.json
 ```
 
-Each time a change is made, all the set of tasks is re-written to the file.
-
-Examples include:
-
+Each time a change is made, the entire set of tasks is re-written to the file. Examples include:
 - Creating tasks
 - Updating tasks
 - Deleting tasks
 - Modifying priorities
 - Updating due dates
-- To add and delete tags.
+- Adding and removing tags
 
-This is a straightforward method, but can get inefficient with a large number of tasks.
+This is a straightforward approach, but it can become inefficient with a large number of tasks.
 
 ---
 
-# Identify and discuss design decisions.
+# Identifying and Discussing Design Decisions
 
-A number of options emerged during analysis for implementation.
+A number of notable implementation choices emerged during the analysis.
 
-## Puppy Training: Patch Object Update Pattern
-
-Task objects are often created as temporary objects with only the modified fields.
-
-These are temporary objects that are then incorporated into previously completed tasks.
-
-The same method is used as a patch operation with only the values that have been changed being copied.
+## Patch Object Update Pattern
+Temporary task objects are often created holding only the modified field(s). These temporary objects are then merged into the existing, already-saved task. The same `update()` method is used as a patch operation, copying over only the values that have changed.
 
 ## Direct Object Mutation
-
-The application doesn't go through the patch model when completing tasks, it just updates the original object.
-
-This means that the updates are not consistent across the system.
+When completing a task, the application skips the patch-object model entirely and updates the original object directly. This means updates are not handled consistently across the system.
 
 ## Full File Persistence
-
-Each change results in an overall rewrite of the JSON file.
-
-This makes for a much easier implementation, but also raises disk operations and the possibility of having disk operations interrupted by a write operation.
+Each change results in the entire JSON file being rewritten. This makes the implementation simpler, but it also increases disk operations and introduces the possibility of a write being interrupted partway through.
 
 ---
 
-# Risks and limitations identified:Risks and limitations identified:
+# Risks and Limitations Identified
 
-While analyzing I discovered that there could be problems in a couple of areas.
+While analyzing the code, I identified a few areas of concern.
 
 ## Limited Error Handling
-
-Some values for the status variable may cause exceptions to be thrown that do not always occur gracefully.
-
-You might get a stack trace instead of a message to the user if the user made a mistake.
+Some invalid status values can cause exceptions that aren't handled gracefully. A user mistake might surface as a raw stack trace instead of a clean error message.
 
 ## File Corruption Risk
-
-The application directly modifies `tasks.json`.
-
-The program may crash while writing and cause the file to be incomplete or corrupt.
+The application overwrites `tasks.json` directly. If the program crashes mid-write, the file could end up incomplete or corrupted.
 
 ## Concurrent Access Issues
-
-The application does not implement:
-
+The application implements none of the following:
 - File locking
 - Synchronization
 - Concurrency controls
 
-Several instances may change each other.
+Multiple instances running at once could overwrite each other's changes.
 
 ## Shared References
-
-The storage layer provides direct object references for the tasks.
-
-These references are to original objects, and changes can be made without further protections.
+The storage layer hands out direct references to the actual task objects, not copies. Changes can be made to these objects without any additional protection.
 
 ---
 
 # Reflection
 
-The most important thing we learned from this exercise was the need to always test assumptions with code tracing.
+The most important thing I learned from this exercise was the need to always test my assumptions against the actual code. Initially, the priority system seemed like it would implement task ranking, because of its numeric values — but tracing the code showed it's only a categorization system.
 
-Initially the priority system seemed to implement the task ranking, due to their numerical values. But it was found that it is only a categorisation system.
+Tracing the code also gave me a better understanding of how responsibility is divided across a layered architecture, and how a single command travels through multiple layers. A command entered on the CLI passes through the service layer, the model layer, and the storage layer — which gave me a much clearer picture of how the application works as a whole system, rather than as a set of isolated classes.
 
-Another benefit of the tracing was to get a better understanding of the division of responsibility within a layered architecture and to trace commands through multiple layers. The data from the command line was passed through the service layer, the model layer and the storage layer, giving me a much better understanding of the operation of the application as a whole system, rather than just as individual classes.
-
-In general, this analysis identified the great features in the application architecture as well as some of the decisions made in the implementation that could be enhanced in future versions.
+Overall, this analysis surfaced both the strong points of the application's architecture and a few implementation decisions that could be improved in future versions.
